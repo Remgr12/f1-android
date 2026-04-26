@@ -41,15 +41,29 @@ class LeaderboardViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<UiState>(UiState.Loading)
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
-    init {
-        load()
-    }
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
+    init { load() }
 
     fun retry() { load() }
+
+    fun refresh() {
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            loadInternal()
+            _isRefreshing.value = false
+        }
+    }
 
     private fun load() {
         viewModelScope.launch {
             _uiState.value = UiState.Loading
+            loadInternal()
+        }
+    }
+
+    private suspend fun loadInternal() {
             runCatching {
                 val year         = Year.now().value
                 val drivers      = repository.getDriverStandings(year)
@@ -77,7 +91,6 @@ class LeaderboardViewModel @Inject constructor(
                 UiState.Success(drivers, constructors, nextGp)
             }.onSuccess { _uiState.value = it }
              .onFailure { _uiState.value = UiState.Error(it.message ?: "Unknown error") }
-        }
     }
 }
 

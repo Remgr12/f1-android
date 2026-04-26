@@ -19,7 +19,7 @@ class SettingsRepository @Inject constructor(
         private const val KEY_API_URL = "api_url"
         private const val KEY_API_KEY = "api_key"
         private const val KEY_THEME_MODE = "theme_mode"
-        private const val DEFAULT_API_URL = "https://api.openf1.org/v1"
+        private const val DEFAULT_API_URL = "https://f1api.remgr.dev/v1"
     }
 
     enum class ThemeMode { SYSTEM, LIGHT, DARK, MATERIAL_YOU }

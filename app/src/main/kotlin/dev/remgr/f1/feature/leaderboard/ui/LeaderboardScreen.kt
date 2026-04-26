@@ -49,63 +49,67 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LeaderboardScreen(
     onNavigateToSettings: () -> Unit,
+    onDriverClick: (Int) -> Unit = {},
+    onConstructorClick: (String) -> Unit = {},
     vm: LeaderboardViewModel = hiltViewModel()
 ) {
     val state by vm.uiState.collectAsStateWithLifecycle()
+    val isRefreshing by vm.isRefreshing.collectAsStateWithLifecycle()
     val pagerState = rememberPagerState(pageCount = { 2 })
     val scope = rememberCoroutineScope()
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Top Header
-        if (state is LeaderboardViewModel.UiState.Success) {
-            val nextGp = (state as LeaderboardViewModel.UiState.Success).nextGp
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp), // Reduced vertical padding from 12 to 6
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    if (nextGp != null) {
-                        Text(
-                            text = "Next: ${nextGp.name}",
-                            style = MaterialTheme.typography.titleSmall, // Smaller style
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "In ${nextGp.daysUntil} days",
-                            style = MaterialTheme.typography.labelSmall, // Smaller style
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        Text(
-                            text = "F1 Standings",
-                            style = MaterialTheme.typography.titleMedium, // Smaller style
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-                
-                IconButton(
-                    onClick = onNavigateToSettings,
-                    modifier = Modifier.size(32.dp) // Smaller button
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Settings",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp) // Smaller icon
+        val nextGp = (state as? LeaderboardViewModel.UiState.Success)?.nextGp
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                if (nextGp != null) {
+                    Text(
+                        text = "Next: ${nextGp.name}",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "In ${nextGp.daysUntil} days",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Text(
+                        text = "F1 Standings",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
                     )
                 }
+            }
+
+            IconButton(
+                onClick = onNavigateToSettings,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "Settings",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
+                )
             }
         }
 
@@ -119,16 +123,22 @@ fun LeaderboardScreen(
             }
         }
 
-        when (val s = state) {
-            is LeaderboardViewModel.UiState.Loading -> LoadingBox()
-            is LeaderboardViewModel.UiState.Error   -> ErrorBox(s.message, vm::retry)
-            is LeaderboardViewModel.UiState.Success -> {
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.weight(1f)
-                ) { page ->
-                    if (page == 0) DriverList(s.drivers)
-                    else ConstructorList(s.constructors)
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = vm::refresh,
+            modifier = Modifier.weight(1f),
+        ) {
+            when (val s = state) {
+                is LeaderboardViewModel.UiState.Loading -> LoadingBox()
+                is LeaderboardViewModel.UiState.Error   -> ErrorBox(s.message, vm::retry)
+                is LeaderboardViewModel.UiState.Success -> {
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxSize(),
+                    ) { page ->
+                        if (page == 0) DriverList(s.drivers, onDriverClick)
+                        else ConstructorList(s.constructors, onConstructorClick)
+                    }
                 }
             }
         }
@@ -136,90 +146,91 @@ fun LeaderboardScreen(
 }
 
 @Composable
-private fun DriverList(drivers: List<DriverStanding>) {
+private fun DriverList(drivers: List<DriverStanding>, onDriverClick: (Int) -> Unit) {
     LazyColumn(
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp), // Reduced vertical padding from 8 to 4
-        verticalArrangement = Arrangement.spacedBy(4.dp), // Reduced spacing from 8 to 4
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        items(drivers, key = { it.driverNumber }) { DriverCard(it) }
+        items(drivers, key = { it.driverNumber() }) { DriverCard(it, onDriverClick) }
     }
 }
 
 @Composable
-private fun DriverCard(s: DriverStanding) {
-    val teamColor = rememberTeamColor(s.teamColour)
+private fun DriverCard(s: DriverStanding, onDriverClick: (Int) -> Unit) {
+    val teamColor = rememberTeamColor(s.teamColour())
     Card(
+        onClick = { onDriverClick(s.driverNumber()) },
         modifier = Modifier.fillMaxWidth(),
         colors   = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
     ) {
         Row(
-            modifier             = Modifier.fillMaxWidth().padding(8.dp), // Reduced padding from 12 to 8
+            modifier             = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 3.dp),
             verticalAlignment    = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp), // Reduced spacing from 12 to 8
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             // Position badge
             Box(
-                modifier        = Modifier.size(32.dp).clip(CircleShape).background(teamColor.copy(alpha = 0.2f)), // Reduced size from 40 to 32
+                modifier        = Modifier.size(28.dp).clip(CircleShape).background(teamColor.copy(alpha = 0.2f)),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text       = "${s.position}",
-                    style      = MaterialTheme.typography.bodyMedium, // Smaller text
+                    text       = "${s.position()}",
+                    style      = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
                     color      = teamColor,
                 )
             }
 
             AsyncImage(
-                model            = s.headshotUrl,
-                contentDescription = s.fullName,
-                modifier         = Modifier.size(40.dp).clip(CircleShape), // Reduced size from 48 to 40
+                model            = s.headshotUrl(),
+                contentDescription = s.fullName(),
+                modifier         = Modifier.size(40.dp).clip(CircleShape),
                 contentScale     = ContentScale.Crop,
             )
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = s.nameAcronym, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold) // Smaller text
-                Text(text = s.teamName, style = MaterialTheme.typography.labelSmall, color = teamColor) // Smaller text
+                Text(text = s.nameAcronym(), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                Text(text = s.teamName(), style = MaterialTheme.typography.labelSmall, color = teamColor)
             }
 
             Column(horizontalAlignment = Alignment.End) {
-                Text(text = "${s.points}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) // Smaller text
+                Text(text = "${s.points()}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(text = "PTS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
-            // Team color stripe
             Box(modifier = Modifier.width(3.dp).height(40.dp).clip(RoundedCornerShape(2.dp)).background(teamColor))
         }
     }
 }
 
 @Composable
-private fun ConstructorList(constructors: List<ConstructorStanding>) {
+private fun ConstructorList(constructors: List<ConstructorStanding>, onConstructorClick: (String) -> Unit) {
     LazyColumn(
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp), // Reduced vertical padding from 8 to 4
-        verticalArrangement = Arrangement.spacedBy(4.dp), // Reduced spacing from 8 to 4
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        items(constructors, key = { it.teamName }) { ConstructorCard(it) }
+        items(constructors, key = { it.teamName() }) { ConstructorCard(it, onConstructorClick) }
     }
 }
 
 @Composable
-private fun ConstructorCard(s: ConstructorStanding) {
-    val teamColor = rememberTeamColor(s.teamColour)
-    val logoUrl = F1Images.getConstructorLogoUrl(s.teamName)
+private fun ConstructorCard(s: ConstructorStanding, onConstructorClick: (String) -> Unit) {
+    val teamColor = rememberTeamColor(s.teamColour())
+    val logoUrl = F1Images.getConstructorLogoUrl(s.teamName())
 
     Card(
+        onClick = { onConstructorClick(s.teamName()) },
         modifier = Modifier.fillMaxWidth(),
         colors   = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
     ) {
         Row(
-            modifier             = Modifier.fillMaxWidth().padding(10.dp), // Reduced padding from 16 to 10
+            modifier             = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 3.dp),
             verticalAlignment    = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp), // Reduced spacing from 16 to 10
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text       = "${s.position}",
-                style      = MaterialTheme.typography.titleMedium, // Smaller text
+                text       = "${s.position()}",
+                style      = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color      = teamColor,
                 modifier   = Modifier.width(28.dp),
@@ -229,7 +240,7 @@ private fun ConstructorCard(s: ConstructorStanding) {
             if (logoUrl != null) {
                 Box(
                     modifier = Modifier
-                        .size(44.dp) // Reduced size from 56 to 44
+                        .size(36.dp)
                         .clip(RoundedCornerShape(6.dp))
                         .background(Color.White)
                         .padding(4.dp),
@@ -237,30 +248,30 @@ private fun ConstructorCard(s: ConstructorStanding) {
                 ) {
                     AsyncImage(
                         model = logoUrl,
-                        contentDescription = s.teamName,
+                        contentDescription = s.teamName(),
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Fit
                     )
                 }
             } else {
                 HorizontalDivider(
-                    modifier  = Modifier.height(36.dp).width(3.dp).clip(RoundedCornerShape(2.dp)), // Reduced size
+                    modifier  = Modifier.height(36.dp).width(3.dp).clip(RoundedCornerShape(2.dp)),
                     color     = teamColor,
                     thickness = 3.dp,
                 )
             }
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = s.teamName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold) // Smaller text
+                Text(text = s.teamName(), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
                 Text(
-                    text  = s.driverAcronyms.joinToString(" · "),
-                    style = MaterialTheme.typography.labelSmall, // Smaller text
+                    text  = s.driverAcronyms().joinToString(" · "),
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
             Column(horizontalAlignment = Alignment.End) {
-                Text(text = "${s.points}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) // Smaller text
+                Text(text = "${s.points()}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(text = "PTS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
@@ -290,7 +301,7 @@ private fun ErrorBox(message: String, onRetry: () -> Unit) {
 }
 
 @Composable
-private fun rememberTeamColor(hex: String?): Color {
+internal fun rememberTeamColor(hex: String?): Color {
     return remember(hex) {
         if (hex.isNullOrBlank()) return@remember Color.Gray
         runCatching { Color(android.graphics.Color.parseColor("#$hex")) }.getOrElse { Color.Gray }

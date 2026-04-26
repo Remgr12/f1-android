@@ -2,6 +2,8 @@ package dev.remgr.f1.feature.pastraces.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
@@ -55,40 +57,57 @@ import java.time.format.DateTimeFormatter
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.MutableInteractionSource
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PastRacesScreen(vm: PastRacesViewModel = hiltViewModel()) {
+fun PastRacesScreen(
+    onSessionClick: (meetingKey: Int, sessionKey: Int) -> Unit = { _, _ -> },
+    vm: PastRacesViewModel = hiltViewModel(),
+) {
     val state by vm.uiState.collectAsStateWithLifecycle()
+    val isRefreshing by vm.isRefreshing.collectAsStateWithLifecycle()
 
-    when (val s = state) {
-        is PastRacesViewModel.UiState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
-        is PastRacesViewModel.UiState.Error   -> Column(
-            Modifier.fillMaxSize().padding(32.dp),
-            Arrangement.Center,
-            Alignment.CenterHorizontally,
-        ) {
-            Text(s.message, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(16.dp))
-            TextButton(vm::retry) { Text("Retry") }
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = vm::refresh,
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        when (val s = state) {
+            is PastRacesViewModel.UiState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
+            is PastRacesViewModel.UiState.Error   -> Column(
+                Modifier.fillMaxSize().padding(32.dp),
+                Arrangement.Center,
+                Alignment.CenterHorizontally,
+            ) {
+                Text(s.message, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(16.dp))
+                TextButton(vm::retry) { Text("Retry") }
+            }
+            is PastRacesViewModel.UiState.Success -> YearList(s.years, vm::toggleYear, onSessionClick)
         }
-        is PastRacesViewModel.UiState.Success -> YearList(s.years, vm::toggleYear)
     }
 }
 
 @Composable
-private fun YearList(years: List<YearState>, onToggle: (Int) -> Unit) {
-    LazyColumn(
-        contentPadding = PaddingValues(bottom = 32.dp),
-    ) {
+private fun YearList(
+    years: List<YearState>,
+    onToggle: (Int) -> Unit,
+    onSessionClick: (meetingKey: Int, sessionKey: Int) -> Unit,
+) {
+    LazyColumn(contentPadding = PaddingValues(bottom = 32.dp)) {
         years.forEach { yearState ->
             item(key = yearState.year) {
-                YearDrawer(yearState, onToggle)
+                YearDrawer(yearState, onToggle, onSessionClick)
             }
         }
     }
 }
 
 @Composable
-private fun YearDrawer(yearState: YearState, onToggle: (Int) -> Unit) {
+private fun YearDrawer(
+    yearState: YearState,
+    onToggle: (Int) -> Unit,
+    onSessionClick: (meetingKey: Int, sessionKey: Int) -> Unit,
+) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Surface(
             onClick = { onToggle(yearState.year) },
@@ -131,7 +150,14 @@ private fun YearDrawer(yearState: YearState, onToggle: (Int) -> Unit) {
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                if (yearState.meetings.isEmpty() && !yearState.isLoading) {
+                if (yearState.error != null && yearState.meetings.isEmpty()) {
+                    Text(
+                        text = "Error: ${yearState.error}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(8.dp)
+                    )
+                } else if (yearState.meetings.isEmpty() && !yearState.isLoading) {
                     Text(
                         text = "No races found for this season.",
                         style = MaterialTheme.typography.bodySmall,
@@ -139,7 +165,7 @@ private fun YearDrawer(yearState: YearState, onToggle: (Int) -> Unit) {
                     )
                 } else {
                     yearState.meetings.forEach { meeting ->
-                        MeetingCard(meeting)
+                        MeetingCard(meeting, onSessionClick)
                     }
                 }
             }
@@ -149,7 +175,10 @@ private fun YearDrawer(yearState: YearState, onToggle: (Int) -> Unit) {
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-private fun MeetingCard(meeting: MeetingRaces) {
+private fun MeetingCard(
+    meeting: MeetingRaces,
+    onSessionClick: (meetingKey: Int, sessionKey: Int) -> Unit,
+) {
     var expanded by rememberSaveable { mutableStateOf(false) }
 
     Surface(
@@ -217,7 +246,14 @@ private fun MeetingCard(meeting: MeetingRaces) {
 
                     meeting.sessions.forEachIndexed { index, session ->
                         val (_, sessionType) = splitMeetingAndSessionType(session.raceName())
-                        Column(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                ) { onSessionClick(session.meetingKey(), session.sessionKey()) }
+                        ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,

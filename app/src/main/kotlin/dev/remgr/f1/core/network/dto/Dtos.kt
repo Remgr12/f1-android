@@ -29,6 +29,7 @@ data class SessionDto(
     @SerialName("country_name")        val countryName: String? = null,
     @SerialName("circuit_key")         val circuitKey: Int?     = null,
     @SerialName("circuit_short_name")  val circuitShortName: String? = null,
+    @SerialName("is_cancelled")        val isCancelled: Boolean      = false,
 )
 
 @Serializable

@@ -12,8 +12,8 @@ class OpenF1RateLimitInterceptor @Inject constructor() : Interceptor {
     private val lock = Any()
     private var lastRequestAtMs: Long = 0L
 
-    private val minRequestIntervalMs = 350L
-    private val maxRetries = 3
+    private val minRequestIntervalMs = 1200L
+    private val maxRetries = 2
 
     override fun intercept(chain: Interceptor.Chain): Response {
         var attempt = 0

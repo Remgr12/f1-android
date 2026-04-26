@@ -27,14 +27,23 @@ import dev.remgr.f1.feature.liveracehub.ui.LiveRaceHubScreen
 import dev.remgr.f1.feature.pastraces.ui.PastRacesScreen
 import dev.remgr.f1.feature.trackmap.ui.TrackMapScreen
 
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import dev.remgr.f1.core.settings.SettingsScreen
+import dev.remgr.f1.feature.leaderboard.ui.ConstructorDetailScreen
+import dev.remgr.f1.feature.leaderboard.ui.DriverDetailScreen
+import dev.remgr.f1.feature.racedetail.ui.RaceDetailScreen
+import java.net.URLEncoder
 
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
-    data object Leaderboard : Screen("leaderboard", "Standings", Icons.Default.EmojiEvents)
-    data object PastRaces   : Screen("past_races",  "Races",    Icons.Default.SportsScore)
-    data object LiveHub     : Screen("live_hub",    "Live",     Icons.Default.LiveTv)
-    data object TrackMap    : Screen("track_map",   "Track",    Icons.Default.Map)
-    data object Settings    : Screen("settings",    "Settings", Icons.Default.Map) // Icon doesn't matter much for sub-page
+    data object Leaderboard       : Screen("leaderboard",                       "Standings", Icons.Default.EmojiEvents)
+    data object PastRaces         : Screen("past_races",                        "Races",     Icons.Default.SportsScore)
+    data object LiveHub           : Screen("live_hub",                          "Live",      Icons.Default.LiveTv)
+    data object TrackMap          : Screen("track_map",                         "Track",     Icons.Default.Map)
+    data object Settings          : Screen("settings",                          "Settings",  Icons.Default.Map)
+    data object DriverDetail      : Screen("driver_detail/{driverNumber}",               "Driver",      Icons.Default.EmojiEvents)
+    data object ConstructorDetail : Screen("constructor_detail/{teamName}",              "Constructor", Icons.Default.EmojiEvents)
+    data object RaceDetail        : Screen("race_detail/{meetingKey}/{sessionKey}",      "Race",        Icons.Default.SportsScore)
 }
 
 private val topLevelScreens = listOf(
@@ -85,14 +94,45 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
             navController    = navController,
             startDestination = Screen.Leaderboard.route,
         ) {
-            composable(Screen.Leaderboard.route) { 
-                LeaderboardScreen(onNavigateToSettings = { navController.navigate(Screen.Settings.route) }) 
+            composable(Screen.Leaderboard.route) {
+                LeaderboardScreen(
+                    onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
+                    onDriverClick = { driverNumber ->
+                        navController.navigate("driver_detail/$driverNumber")
+                    },
+                    onConstructorClick = { teamName ->
+                        val encoded = URLEncoder.encode(teamName, "UTF-8")
+                        navController.navigate("constructor_detail/$encoded")
+                    },
+                )
             }
-            composable(Screen.PastRaces.route)   { PastRacesScreen() }
+            composable(Screen.PastRaces.route) {
+                PastRacesScreen(onSessionClick = { meetingKey, sessionKey ->
+                    navController.navigate("race_detail/$meetingKey/$sessionKey")
+                })
+            }
             composable(Screen.LiveHub.route)     { LiveRaceHubScreen() }
             composable(Screen.TrackMap.route)    { TrackMapScreen() }
-            composable(Screen.Settings.route)    { 
-                SettingsScreen(onBack = { navController.popBackStack() }) 
+            composable(Screen.Settings.route)    {
+                SettingsScreen(onBack = { navController.popBackStack() })
+            }
+            composable(
+                Screen.DriverDetail.route,
+                arguments = listOf(navArgument("driverNumber") { type = NavType.IntType }),
+            ) {
+                DriverDetailScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Screen.ConstructorDetail.route) {
+                ConstructorDetailScreen(onBack = { navController.popBackStack() })
+            }
+            composable(
+                Screen.RaceDetail.route,
+                arguments = listOf(
+                    navArgument("meetingKey") { type = NavType.IntType },
+                    navArgument("sessionKey") { type = NavType.IntType },
+                ),
+            ) {
+                RaceDetailScreen(onBack = { navController.popBackStack() })
             }
         }
     }

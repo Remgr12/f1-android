@@ -12,7 +12,7 @@ import dev.remgr.f1.core.network.dto.SessionDto
 import retrofit2.http.GET
 import retrofit2.http.QueryMap
 
-// OpenF1-compatible REST API — https://f1api.remgr.dev/v1/
+// OpenF1 REST API — https://api.openf1.org/v1/
 //
 // Filter operators (date>, date<) are non-standard query param names.
 // We pass them via @QueryMap; the OpenF1FilterInterceptor decodes the

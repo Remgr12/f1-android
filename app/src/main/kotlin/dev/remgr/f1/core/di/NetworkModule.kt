@@ -85,7 +85,7 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideRetrofit(okHttp: OkHttpClient, json: Json): Retrofit = Retrofit.Builder()
-        .baseUrl("https://api.openf1.org/v1/") // Placeholder, overridden by interceptor
+        .baseUrl("https://f1api.remgr.dev/v1/") // Placeholder, overridden by interceptor
         .client(okHttp)
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
         .build()

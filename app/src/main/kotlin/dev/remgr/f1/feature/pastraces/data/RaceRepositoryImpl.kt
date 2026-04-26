@@ -53,54 +53,59 @@ class RaceRepositoryImpl @Inject constructor(
         try {
             val meetingsByKey = service.getMeetings(mapOf("year" to year.toString()))
                 .associateBy { it.meetingKey }
-            
-            // Fetch all sessions and filter by type or name to catch everything
-            val allSessions = service.getSessions(mapOf("year" to year.toString()))
-            val includedTypes = setOf("Race", "Sprint", "Qualifying")
-            val includedNames = setOf("Race", "Sprint", "Qualifying", "Sprint Qualifying", "Sprint Shootout")
 
-            val raceSessions = allSessions
-                .filter { it.sessionType in includedTypes || it.sessionName in includedNames }
+            val now = Instant.now()
+            val raceSessions = listOf("Race", "Qualifying")
+                .flatMap { type -> service.getSessions(mapOf("year" to year.toString(), "session_type" to type)) }
+                .distinctBy { it.sessionKey }
+                .filter { !it.isCancelled }
+                .filter { parseIsoInstantOrNull(it.dateStart)?.isBefore(now) == true }
                 .sortedByDescending { it.dateStart }
 
-            // Only include sessions that have already started/ended.
+            val resultSessionNames = setOf("Race", "Sprint")
+
             val fetched = raceSessions.mapNotNull { session ->
-                val meeting = meetingsByKey[session.meetingKey] ?: return@mapNotNull null
+                val meeting = meetingsByKey[session.meetingKey]
 
-                val positions = service.getPositions(mapOf("session_key" to session.sessionKey.toString()))
-                val drivers   = service.getDrivers(mapOf("session_key" to session.sessionKey.toString()))
-                    .associateBy { it.driverNumber }
+                val results = if (session.sessionName in resultSessionNames) {
+                    val positions = service.getPositions(mapOf("session_key" to session.sessionKey.toString()))
+                    val drivers   = service.getDrivers(mapOf("session_key" to session.sessionKey.toString()))
+                        .associateBy { it.driverNumber }
+                    positions
+                        .groupBy { it.driverNumber }
+                        .mapValues { (_, hist) -> hist.maxByOrNull { it.date } }
+                        .values
+                        .filterNotNull()
+                        .sortedBy { it.position }
+                        .map { pos ->
+                            val d = drivers[pos.driverNumber]
+                            RaceResult(
+                                position     = pos.position,
+                                driverNumber = pos.driverNumber,
+                                driverName   = d?.fullName    ?: "Driver #${pos.driverNumber}",
+                                nameAcronym  = d?.nameAcronym ?: "???",
+                                teamName     = d?.teamName    ?: "Unknown",
+                                teamColour   = d?.teamColour  ?: "FFFFFF",
+                                points       = when (session.sessionName) {
+                                    "Race"   -> F1Points.forPosition(pos.position)
+                                    "Sprint" -> F1Points.forSprintPosition(pos.position)
+                                    else     -> 0
+                                },
+                            )
+                        }
+                } else {
+                    emptyList()
+                }
 
-                val results = positions
-                    .groupBy { it.driverNumber }
-                    .mapValues { (_, hist) -> hist.maxByOrNull { it.date } }
-                    .values
-                    .filterNotNull()
-                    .sortedBy { it.position }
-                    .map { pos ->
-                        val d = drivers[pos.driverNumber]
-                        RaceResult(
-                            position     = pos.position,
-                            driverNumber = pos.driverNumber,
-                            driverName   = d?.fullName    ?: "Driver #${pos.driverNumber}",
-                            nameAcronym  = d?.nameAcronym ?: "???",
-                            teamName     = d?.teamName    ?: "Unknown",
-                            teamColour   = d?.teamColour  ?: "FFFFFF",
-                            points       = when (session.sessionName) {
-                                "Race" -> F1Points.forPosition(pos.position)
-                                "Sprint" -> F1Points.forSprintPosition(pos.position)
-                                else -> 0
-                            },
-                        )
-                    }
-
+                val meetingName = meeting?.meetingName
+                    ?: "${session.countryName ?: session.location ?: "Unknown"} Grand Prix"
                 Race(
-                    meetingKey  = meeting.meetingKey,
+                    meetingKey  = session.meetingKey,
                     sessionKey  = session.sessionKey,
-                    raceName    = "${meeting.meetingName} — ${session.sessionName}",
-                    location    = meeting.location,
-                    countryName = meeting.countryName,
-                    circuitName = meeting.circuitShortName,
+                    raceName    = "$meetingName — ${session.sessionName}",
+                    location    = meeting?.location ?: session.location ?: "",
+                    countryName = meeting?.countryName ?: session.countryName ?: "",
+                    circuitName = meeting?.circuitShortName ?: session.circuitShortName ?: "",
                     dateStart   = session.dateStart,
                     results     = results,
                 )

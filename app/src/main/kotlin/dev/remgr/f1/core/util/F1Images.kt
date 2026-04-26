@@ -12,9 +12,10 @@ object F1Images {
         "Aston Martin" to "https://media.formula1.com/content/dam/fom-website/teams/2024/aston-martin-logo.png",
         "Alpine" to "https://media.formula1.com/content/dam/fom-website/teams/2024/alpine-logo.png",
         "Williams" to "https://media.formula1.com/content/dam/fom-website/teams/2024/williams-logo.png",
+        "Racing Bulls" to "https://media.formula1.com/content/dam/fom-website/teams/2024/rb-logo.png",
         "RB" to "https://media.formula1.com/content/dam/fom-website/teams/2024/rb-logo.png",
         "Sauber" to "https://media.formula1.com/content/dam/fom-website/teams/2024/sauber-logo.png",
-        "Haas F1 Team" to "https://media.formula1.com/content/dam/fom-website/teams/2024/haas-f1-team-logo.png"
+        "Haas F1 Team" to "https://media.formula1.com/content/dam/fom-website/teams/2024/haas-f1-team-logo.png",
     )
 
     fun getConstructorLogoUrl(teamName: String?): String? {

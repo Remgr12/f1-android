@@ -25,7 +25,8 @@ data class YearState(
     val year: Int,
     val meetings: List<MeetingRaces> = emptyList(),
     val isLoading: Boolean = false,
-    val isExpanded: Boolean = false
+    val isExpanded: Boolean = false,
+    val error: String? = null,
 )
 
 @HiltViewModel
@@ -51,9 +52,25 @@ class PastRacesViewModel @Inject constructor(
         loadYear(currentYear)
     }
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
     fun retry() {
         val currentYear = Year.now().value
         loadYear(currentYear)
+    }
+
+    fun refresh() {
+        val currentYear = Year.now().value
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            val s = _uiState.value as? UiState.Success ?: run {
+                _isRefreshing.value = false
+                return@launch
+            }
+            s.years.filter { it.isExpanded }.forEach { loadYearInternal(it.year) }
+            _isRefreshing.value = false
+        }
     }
 
     fun toggleYear(year: Int) {
@@ -74,35 +91,35 @@ class PastRacesViewModel @Inject constructor(
     }
 
     private fun loadYear(year: Int) {
-        viewModelScope.launch {
-            updateYearState(year) { it.copy(isLoading = true) }
-            
-            runCatching { repository.getRaces(year) }
-                .onSuccess { races -> 
-                    val grouped = races.groupBy { it.meetingKey() }.map { (meetingKey, sessions) ->
-                        val first = sessions.first()
-                        val separator = " — "
-                        val meetingName = if (first.raceName().contains(separator)) {
-                            first.raceName().substringBeforeLast(separator)
-                        } else {
-                            first.raceName()
-                        }
-                        MeetingRaces(
-                            meetingKey = meetingKey,
-                            meetingName = meetingName,
-                            location = first.location(),
-                            countryName = first.countryName(),
-                            circuitName = first.circuitName(),
-                            sessions = sessions.sortedBy { it.dateStart() }
-                        )
-                    }.sortedByDescending { it.sessions.last().dateStart() }
-                    
-                    updateYearState(year) { it.copy(meetings = grouped, isLoading = false) }
-                }
-                .onFailure { _ ->
-                    updateYearState(year) { it.copy(isLoading = false) }
-                }
-        }
+        viewModelScope.launch { loadYearInternal(year) }
+    }
+
+    private suspend fun loadYearInternal(year: Int) {
+        updateYearState(year) { it.copy(isLoading = true) }
+        runCatching { repository.getRaces(year) }
+            .onSuccess { races ->
+                val grouped = races.groupBy { it.meetingKey() }.map { (meetingKey, sessions) ->
+                    val first = sessions.first()
+                    val separator = " — "
+                    val meetingName = if (first.raceName().contains(separator)) {
+                        first.raceName().substringBeforeLast(separator)
+                    } else {
+                        first.raceName()
+                    }
+                    MeetingRaces(
+                        meetingKey  = meetingKey,
+                        meetingName = meetingName,
+                        location    = first.location(),
+                        countryName = first.countryName(),
+                        circuitName = first.circuitName(),
+                        sessions    = sessions.sortedBy { it.dateStart() }
+                    )
+                }.sortedByDescending { it.sessions.last().dateStart() }
+                updateYearState(year) { it.copy(meetings = grouped, isLoading = false) }
+            }
+            .onFailure { e ->
+                updateYearState(year) { it.copy(isLoading = false, error = e.message ?: "Failed to load races") }
+            }
     }
 
     private fun updateYearState(year: Int, transform: (YearState) -> YearState) {

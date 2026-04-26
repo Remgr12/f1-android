@@ -41,27 +41,25 @@ class StandingsRepositoryImpl @Inject constructor(
         }
 
         try {
-            val sessions = service.getSessions(mapOf("year" to year.toString()))
+            val sessions = service.getSessions(mapOf("year" to year.toString(), "session_type" to "Race"))
+                .filter { !it.isCancelled }
             val driverInfo = service.getDrivers(mapOf("session_key" to "latest")).associateBy { it.driverNumber }
 
             val pointsMap = mutableMapOf<Int, Int>()
             val winsMap   = mutableMapOf<Int, Int>()
 
             for (session in sessions) {
-                if (session.sessionType != "Race" && session.sessionType != "Sprint") continue
-
                 val positions = service.getPositions(mapOf("session_key" to session.sessionKey.toString()))
 
-                // Final standing = last recorded position per driver in the session.
                 positions
                     .groupBy { it.driverNumber }
                     .mapValues { (_, hist) -> hist.maxByOrNull { it.date } }
                     .values
                     .filterNotNull()
                     .forEach { pos ->
-                        val pts = if (session.sessionType == "Sprint") F1Points.forSprintPosition(pos.position) else F1Points.forPosition(pos.position)
+                        val pts = if (session.sessionName == "Sprint") F1Points.forSprintPosition(pos.position) else F1Points.forPosition(pos.position)
                         pointsMap.merge(pos.driverNumber, pts, Int::plus)
-                        if (session.sessionType == "Race" && pos.position == 1) winsMap.merge(pos.driverNumber, 1, Int::plus)
+                        if (session.sessionName == "Race" && pos.position == 1) winsMap.merge(pos.driverNumber, 1, Int::plus)
                     }
             }
 

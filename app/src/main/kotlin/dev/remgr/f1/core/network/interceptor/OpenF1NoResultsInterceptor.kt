@@ -14,7 +14,6 @@ class OpenF1NoResultsInterceptor @Inject constructor() : Interceptor {
         if (response.code != 404) return response
 
         val request = response.request
-        if (request.url.host != "f1api.remgr.dev") return response
 
         val bodyString = response.body?.string().orEmpty()
         val isNoResults = bodyString.contains("No results found", ignoreCase = true)
