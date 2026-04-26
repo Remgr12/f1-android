@@ -12,6 +12,20 @@ import kotlinx.coroutines.launch
 import java.time.Year
 import javax.inject.Inject
 
+data class MeetingRaces(
+    val meetingKey: Int,
+    val meetingName: String,
+    val location: String,
+    val countryName: String,
+    val circuitName: String,
+    val sessions: List<Race>
+)
+
+data class YearRaces(
+    val year: Int,
+    val meetings: List<MeetingRaces>
+)
+
 @HiltViewModel
 class PastRacesViewModel @Inject constructor(
     private val repository: RaceRepository,
@@ -19,7 +33,7 @@ class PastRacesViewModel @Inject constructor(
 
     sealed interface UiState {
         data object Loading : UiState
-        data class Success(val races: List<Race>) : UiState
+        data class Success(val years: List<YearRaces>) : UiState
         data class Error(val message: String) : UiState
     }
 
@@ -33,9 +47,35 @@ class PastRacesViewModel @Inject constructor(
     private fun load() {
         viewModelScope.launch {
             _uiState.value = UiState.Loading
-            runCatching { repository.getRaces(Year.now().value) }
-                .onSuccess { _uiState.value = UiState.Success(it) }
+            runCatching {
+                val currentYear = Year.now().value
+                val yearsToFetch = (currentYear downTo 2023).toList()
+                
+                yearsToFetch.map { year ->
+                    val races = repository.getRaces(year)
+                    val grouped = races.groupBy { it.meetingKey() }.map { (meetingKey, sessions) ->
+                        val first = sessions.first()
+                        val separator = " — "
+                        val meetingName = if (first.raceName().contains(separator)) {
+                            first.raceName().substringBeforeLast(separator)
+                        } else {
+                            first.raceName()
+                        }
+                        MeetingRaces(
+                            meetingKey = meetingKey,
+                            meetingName = meetingName,
+                            location = first.location(),
+                            countryName = first.countryName(),
+                            circuitName = first.circuitName(),
+                            sessions = sessions.sortedBy { it.dateStart() }
+                        )
+                    }.sortedByDescending { it.sessions.last().dateStart() }
+                    YearRaces(year, grouped)
+                }
+            }
+                .onSuccess { years -> _uiState.value = UiState.Success(years) }
                 .onFailure { _uiState.value = UiState.Error(it.message ?: "Unknown error") }
         }
     }
 }
+

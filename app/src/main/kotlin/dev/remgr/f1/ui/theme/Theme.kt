@@ -10,6 +10,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import dev.remgr.f1.core.settings.SettingsRepository
 
 // Fallback palette — Material You dynamic color used when API >= 31.
 private val F1Red = Color(0xFFE8002D)
@@ -44,17 +45,25 @@ private val LightColors = lightColorScheme(
 
 @Composable
 fun F1Theme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    themeMode: SettingsRepository.ThemeMode = SettingsRepository.ThemeMode.SYSTEM,
     content: @Composable () -> Unit,
 ) {
+    val isSystemDark = isSystemInDarkTheme()
+    
+    val (useDark, useDynamic) = when (themeMode) {
+        SettingsRepository.ThemeMode.SYSTEM       -> isSystemDark to false
+        SettingsRepository.ThemeMode.LIGHT        -> false to false
+        SettingsRepository.ThemeMode.DARK         -> true to false
+        SettingsRepository.ThemeMode.MATERIAL_YOU -> isSystemDark to true
+    }
+
     val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+        useDynamic && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val ctx = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
+            if (useDark) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
         }
-        darkTheme -> DarkColors
-        else      -> LightColors
+        useDark -> DarkColors
+        else    -> LightColors
     }
 
     MaterialTheme(

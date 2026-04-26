@@ -27,11 +27,14 @@ import dev.remgr.f1.feature.liveracehub.ui.LiveRaceHubScreen
 import dev.remgr.f1.feature.pastraces.ui.PastRacesScreen
 import dev.remgr.f1.feature.trackmap.ui.TrackMapScreen
 
+import dev.remgr.f1.core.settings.SettingsScreen
+
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
     data object Leaderboard : Screen("leaderboard", "Standings", Icons.Default.EmojiEvents)
     data object PastRaces   : Screen("past_races",  "Races",    Icons.Default.SportsScore)
     data object LiveHub     : Screen("live_hub",    "Live",     Icons.Default.LiveTv)
     data object TrackMap    : Screen("track_map",   "Track",    Icons.Default.Map)
+    data object Settings    : Screen("settings",    "Settings", Icons.Default.Map) // Icon doesn't matter much for sub-page
 }
 
 private val topLevelScreens = listOf(
@@ -48,22 +51,24 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
 
     Scaffold(
         bottomBar = {
-            NavigationBar {
-                topLevelScreens.forEach { screen ->
-                    NavigationBarItem(
-                        selected = currentRoute == screen.route,
-                        onClick  = {
-                            navController.navigate(screen.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+            if (currentRoute in topLevelScreens.map { it.route }) {
+                NavigationBar {
+                    topLevelScreens.forEach { screen ->
+                        NavigationBarItem(
+                            selected = currentRoute == screen.route,
+                            onClick  = {
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState    = true
                                 }
-                                launchSingleTop = true
-                                restoreState    = true
-                            }
-                        },
-                        icon  = { Icon(screen.icon, contentDescription = screen.label) },
-                        label = { Text(screen.label) },
-                    )
+                            },
+                            icon  = { Icon(screen.icon, contentDescription = screen.label) },
+                            label = { Text(screen.label) },
+                        )
+                    }
                 }
             }
         },
@@ -76,10 +81,15 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
             navController    = navController,
             startDestination = Screen.Leaderboard.route,
         ) {
-            composable(Screen.Leaderboard.route) { LeaderboardScreen() }
+            composable(Screen.Leaderboard.route) { 
+                LeaderboardScreen(onNavigateToSettings = { navController.navigate(Screen.Settings.route) }) 
+            }
             composable(Screen.PastRaces.route)   { PastRacesScreen() }
             composable(Screen.LiveHub.route)     { LiveRaceHubScreen() }
             composable(Screen.TrackMap.route)    { TrackMapScreen() }
+            composable(Screen.Settings.route)    { 
+                SettingsScreen(onBack = { navController.popBackStack() }) 
+            }
         }
     }
 }

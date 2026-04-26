@@ -53,14 +53,14 @@ class RaceRepositoryImpl @Inject constructor(
         try {
             val meetingsByKey = service.getMeetings(mapOf("year" to year.toString()))
                 .associateBy { it.meetingKey }
-            val now = Instant.now()
-            val includedSessionNames = setOf("Race", "Sprint", "Qualifying", "Sprint Qualifying")
-            val raceSessions = service.getSessions(mapOf("year" to year.toString()))
-                .filter { session ->
-                    val endOrStart = session.dateEnd ?: session.dateStart
-                    val isPastOrCurrent = parseIsoInstantOrNull(endOrStart)?.isBefore(now.plusSeconds(60)) == true
-                    isPastOrCurrent && session.sessionName in includedSessionNames
-                }
+            
+            // Fetch all sessions and filter by type or name to catch everything
+            val allSessions = service.getSessions(mapOf("year" to year.toString()))
+            val includedTypes = setOf("Race", "Sprint", "Qualifying")
+            val includedNames = setOf("Race", "Sprint", "Qualifying", "Sprint Qualifying", "Sprint Shootout")
+
+            val raceSessions = allSessions
+                .filter { it.sessionType in includedTypes || it.sessionName in includedNames }
                 .sortedByDescending { it.dateStart }
 
             // Only include sessions that have already started/ended.

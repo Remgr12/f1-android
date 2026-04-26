@@ -34,31 +34,34 @@ class TrackMapRepositoryImpl @Inject constructor(
 
     override suspend fun getTrackOptions(): List<TrackSessionOption> {
         val currentYear = Year.now().value
-        val candidateYears = listOf(currentYear, currentYear - 1)
+        // Fetch data from multiple years to provide historical context
+        val candidateYears = (currentYear downTo 2023).toList()
 
         val meetingsByKey = mutableMapOf<Int, String>()
         val sessions = mutableListOf<Pair<Int, String>>()
+        val includedSessionNames = setOf("Race", "Sprint", "Qualifying", "Sprint Qualifying")
 
         candidateYears.forEach { year ->
-            service.getMeetings(mapOf("year" to year.toString()))
-                .forEach { meeting ->
-                    meetingsByKey[meeting.meetingKey] = meeting.meetingName
-                }
+            runCatching {
+                service.getMeetings(mapOf("year" to year.toString()))
+                    .forEach { meeting ->
+                        meetingsByKey[meeting.meetingKey] = meeting.meetingName
+                    }
 
-            service.getSessions(mapOf("year" to year.toString(), "session_type" to "Race"))
-                .sortedByDescending { it.dateStart }
-                .forEach { session ->
-                    val dateLabel = session.dateStart.take(10)
-                    val meetingName = meetingsByKey[session.meetingKey] ?: (session.location ?: "Race")
-                    val circuit = session.circuitShortName ?: "Unknown circuit"
-                    val label = "$dateLabel • $meetingName • $circuit"
-                    sessions += session.sessionKey to label
-                }
+                service.getSessions(mapOf("year" to year.toString()))
+                    .filter { it.sessionName in includedSessionNames }
+                    .sortedByDescending { it.dateStart }
+                    .forEach { session ->
+                        val meetingName = meetingsByKey[session.meetingKey] ?: (session.location ?: "Race")
+                        val circuit = session.circuitShortName ?: "Unknown circuit"
+                        val label = "$year • $meetingName • $circuit • ${session.sessionName}"
+                        sessions += session.sessionKey to label
+                    }
+            }
         }
 
         val historical = sessions
             .distinctBy { it.first }
-            .take(20)
             .map { (sessionKey, label) -> TrackSessionOption(sessionKey = sessionKey, label = label) }
 
         return listOf(TrackSessionOption(sessionKey = null, label = "Latest session (Live)")) + historical
@@ -74,6 +77,8 @@ class TrackMapRepositoryImpl @Inject constructor(
         val session = sessions.firstOrNull()
         val circuitKey = session?.circuitKey
         val shortName = session?.circuitShortName
+        val sessionStartTime = session?.let { runCatching { Instant.parse(it.dateStart) }.getOrNull() }
+        val sessionEndTime = session?.dateEnd?.let { runCatching { Instant.parse(it) }.getOrNull() }
 
         val trackPointSet = LinkedHashSet<Offset>()
         var outlineSaved = false
@@ -98,16 +103,16 @@ class TrackMapRepositoryImpl @Inject constructor(
         if (trackPointSet.isEmpty() && shortName != null) {
             val prebaked = CircuitPaths.forCircuit(shortName)
             if (prebaked != null) {
-                emit(TrackMapState(prebaked, emptyList()))
+                emit(TrackMapState(prebaked, emptyList(), sessionStartTime, sessionEndTime))
             }
         } else if (trackPointSet.isNotEmpty()) {
-            emit(TrackMapState(trackPointSet.toList(), emptyList()))
+            emit(TrackMapState(trackPointSet.toList(), emptyList(), sessionStartTime, sessionEndTime))
         }
 
         if (sessionKey != null) {
             val outlineDriverNumber = drivers.keys.minOrNull()
             if (outlineDriverNumber == null) {
-                emit(TrackMapState(trackPointSet.toList(), emptyList()))
+                emit(TrackMapState(trackPointSet.toList(), emptyList(), sessionStartTime, sessionEndTime))
                 return@flow
             }
 
@@ -120,7 +125,7 @@ class TrackMapRepositoryImpl @Inject constructor(
                 ),
             ).sortedBy { it.date }
             if (outlineLocations.isEmpty()) {
-                emit(TrackMapState(trackPointSet.toList(), emptyList()))
+                emit(TrackMapState(trackPointSet.toList(), emptyList(), sessionStartTime, sessionEndTime))
                 return@flow
             }
 
@@ -140,7 +145,7 @@ class TrackMapRepositoryImpl @Inject constructor(
                 outlineSaved = true
             }
 
-            emit(TrackMapState(trackPointSet.toList(), emptyList()))
+            emit(TrackMapState(trackPointSet.toList(), emptyList(), sessionStartTime, sessionEndTime))
             return@flow
         }
 
@@ -222,13 +227,38 @@ class TrackMapRepositoryImpl @Inject constructor(
                         )
                     }
 
-                emit(TrackMapState(trackPointSet.toList(), carPositions))
+                emit(TrackMapState(trackPointSet.toList(), carPositions, sessionStartTime, sessionEndTime))
             } else if (trackPointSet.isNotEmpty() && telemetryPointsAdded > 0) {
                 // Keep emitting the track even if cars haven't moved (only if we have real telemetry or cached outline)
-                emit(TrackMapState(trackPointSet.toList(), emptyList()))
+                emit(TrackMapState(trackPointSet.toList(), emptyList(), sessionStartTime, sessionEndTime))
             }
 
             delay(1200.milliseconds)
         }
     }.flowOn(Dispatchers.IO)
+
+    override suspend fun fetchPositionsAt(sessionKey: Int, time: Instant): List<TrackPosition> {
+        val drivers = service.getDrivers(mapOf("session_key" to sessionKey.toString()))
+            .associateBy { it.driverNumber }
+
+        val locations = service.getLocations(
+            mapOf("session_key" to sessionKey.toString(), "date<=" to time.toString().substringBefore("."))
+        )
+
+        return locations
+            .groupBy { it.driverNumber }
+            .mapValues { (_, locs) -> locs.maxByOrNull { it.date } }
+            .mapNotNull { (num, loc) ->
+                loc ?: return@mapNotNull null
+                val d = drivers[num] ?: return@mapNotNull null
+                TrackPosition(
+                    driverNumber = num,
+                    nameAcronym  = d.nameAcronym,
+                    teamColour   = d.teamColour ?: "FFFFFF",
+                    x            = loc.x,
+                    y            = loc.y,
+                    z            = loc.z,
+                )
+            }
+    }
 }

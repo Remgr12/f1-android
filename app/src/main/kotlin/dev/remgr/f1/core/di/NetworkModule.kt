@@ -18,11 +18,12 @@ import retrofit2.Retrofit
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
+import dev.remgr.f1.core.settings.SettingsRepository
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
-
-    private const val BASE_URL = "https://f1api.remgr.dev/v1/"
 
     @Provides
     @Singleton
@@ -36,7 +37,32 @@ object NetworkModule {
     fun provideOkHttp(
         rateLimitInterceptor: OpenF1RateLimitInterceptor,
         noResultsInterceptor: OpenF1NoResultsInterceptor,
+        settings: SettingsRepository,
     ): OkHttpClient = OkHttpClient.Builder()
+        .addInterceptor { chain ->
+            var request = chain.request()
+            val newBaseUrl = settings.getApiBaseUrl().toHttpUrlOrNull()
+            
+            if (newBaseUrl != null) {
+                val newUrl = request.url.newBuilder()
+                    .scheme(newBaseUrl.scheme)
+                    .host(newBaseUrl.host)
+                    .port(newBaseUrl.port)
+                    .build()
+                request = request.newBuilder()
+                    .url(newUrl)
+                    .build()
+            }
+            
+            val apiKey = settings.getApiKey()
+            if (!apiKey.isNullOrBlank()) {
+                request = request.newBuilder()
+                    .header("x-api-key", apiKey) // OpenF1 standard header or as required by proxy
+                    .build()
+            }
+            
+            chain.proceed(request)
+        }
         .addInterceptor(rateLimitInterceptor)
         .addInterceptor(OpenF1FilterInterceptor())
         .addInterceptor(noResultsInterceptor)
@@ -59,7 +85,7 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideRetrofit(okHttp: OkHttpClient, json: Json): Retrofit = Retrofit.Builder()
-        .baseUrl(BASE_URL)
+        .baseUrl("https://api.openf1.org/v1/") // Placeholder, overridden by interceptor
         .client(okHttp)
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
         .build()

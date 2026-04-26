@@ -7,13 +7,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -21,10 +24,13 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -41,7 +47,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.remgr.f1.feature.trackmap.domain.model.TrackPosition
 import dev.remgr.f1.feature.trackmap.domain.TrackSessionOption
@@ -54,33 +60,101 @@ fun TrackMapScreen(vm: TrackMapViewModel = hiltViewModel()) {
     val options by vm.trackOptions.collectAsStateWithLifecycle()
     val selectedSessionKey by vm.selectedSessionKey.collectAsStateWithLifecycle()
 
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0A))) {
-        TrackSessionSelector(
-            options = options,
-            selectedSessionKey = selectedSessionKey,
-            onSelect = vm::selectSession,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-        )
+    val scaffoldState = rememberBottomSheetScaffoldState()
 
-        Box(modifier = Modifier.fillMaxSize()) {
-            if (state.trackPoints.isEmpty()) {
-                Column(
-                    modifier = Modifier.align(Alignment.Center),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                    Text("Waiting for telemetry…", color = Color.White, style = MaterialTheme.typography.bodyMedium)
-                }
-            } else {
-                TrackCanvas(
-                    trackPoints  = state.trackPoints,
-                    carPositions = state.carPositions,
-                    modifier     = Modifier.fillMaxSize(),
+    BottomSheetScaffold(
+        scaffoldState = scaffoldState,
+        sheetPeekHeight = if (state.race != null) 48.dp else 0.dp,
+        sheetContainerColor = Color(0xFF1A1A1A),
+        sheetContent = {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Swipe up for Results",
+                    color = Color.Gray,
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.padding(bottom = 16.dp)
                 )
-                CarLegend(
-                    cars     = state.carPositions,
-                    modifier = Modifier.align(Alignment.BottomStart).padding(16.dp),
+                if (state.race != null) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().height(400.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(state.race!!.results().sortedBy { it.position() }) { result ->
+                            val color = runCatching { Color(android.graphics.Color.parseColor("#${result.teamColour()}")) }
+                                .getOrElse { Color.Gray }
+                            Row(
+                                modifier = Modifier.fillMaxWidth().background(Color(0xFF2A2A2A), RoundedCornerShape(8.dp)).padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("${result.position()}", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.size(24.dp))
+                                Spacer(Modifier.size(8.dp))
+                                Box(Modifier.size(4.dp, 24.dp).background(color))
+                                Spacer(Modifier.size(8.dp))
+                                Column {
+                                    Text(result.driverName(), color = Color.White, fontWeight = FontWeight.Bold)
+                                    Text(result.teamName() ?: "", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                }
+                                Spacer(Modifier.weight(1f))
+                                Text("${result.points()} pts", color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        containerColor = Color(0xFF0A0A0A)
+    ) { paddingValues ->
+        Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            TrackSessionSelector(
+                options = options,
+                selectedSessionKey = selectedSessionKey,
+                onSelect = vm::selectSession,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+
+            Box(modifier = Modifier.weight(1f)) {
+                if (state.trackPoints.isEmpty()) {
+                    Column(
+                        modifier = Modifier.align(Alignment.Center),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                        Text("Waiting for telemetry…", color = Color.White, style = MaterialTheme.typography.bodyMedium)
+                    }
+                } else {
+                    TrackCanvas(
+                        trackPoints  = state.trackPoints,
+                        carPositions = state.carPositions,
+                        modifier     = Modifier.fillMaxSize(),
+                    )
+                    CarLegend(
+                        cars     = state.carPositions,
+                        modifier = Modifier.align(Alignment.BottomStart).padding(16.dp),
+                    )
+                }
+            }
+
+            if (state.sessionStartTime != null && state.sessionEndTime != null) {
+                var sliderValue by remember(state.currentPlaybackTime) {
+                    mutableFloatStateOf(
+                        if (state.currentPlaybackTime == null) 1f else {
+                            val total = state.sessionEndTime!!.toEpochMilli() - state.sessionStartTime!!.toEpochMilli()
+                            val current = state.currentPlaybackTime!!.toEpochMilli() - state.sessionStartTime!!.toEpochMilli()
+                            (current.toFloat() / total.toFloat()).coerceIn(0f, 1f)
+                        }
+                    )
+                }
+                Slider(
+                    value = sliderValue,
+                    onValueChange = { 
+                        sliderValue = it
+                        vm.scrubToTime(it)
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
         }
@@ -97,33 +171,65 @@ private fun TrackSessionSelector(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val selectedOption = options.firstOrNull { it.sessionKey == selectedSessionKey } ?: options.firstOrNull()
+    var searchQuery by remember(selectedOption) { mutableStateOf("") }
+
+    val filteredOptions = remember(searchQuery, options) {
+        if (searchQuery.isBlank()) {
+            options
+        } else {
+            options.filter { it.label.contains(searchQuery, ignoreCase = true) }
+        }
+    }
 
     ExposedDropdownMenuBox(
         expanded = expanded,
-        onExpandedChange = { expanded = !expanded },
+        onExpandedChange = { isExpanded -> 
+            expanded = isExpanded
+            if (!isExpanded) {
+                searchQuery = ""
+            }
+        },
         modifier = modifier,
     ) {
         OutlinedTextField(
-            value = selectedOption?.label ?: "Loading tracks…",
-            onValueChange = {},
-            readOnly = true,
+            value = if (expanded) searchQuery else (selectedOption?.label ?: "Loading tracks…"),
+            onValueChange = { 
+                searchQuery = it
+                expanded = true
+            },
+            readOnly = false,
             singleLine = true,
-            label = { Text("Track / Race") },
+            label = { Text("Search Track / Session") },
+            placeholder = { Text(selectedOption?.label ?: "Search...") },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.fillMaxWidth().menuAnchor(),
+            modifier = Modifier.fillMaxWidth().menuAnchor(
+                type = androidx.compose.material3.MenuAnchorType.PrimaryEditable,
+                enabled = true
+            ),
         )
 
         ExposedDropdownMenu(
             expanded = expanded,
-            onDismissRequest = { expanded = false },
+            onDismissRequest = { 
+                expanded = false
+                searchQuery = ""
+            },
         ) {
-            options.forEach { option ->
+            filteredOptions.take(50).forEach { option ->
                 DropdownMenuItem(
                     text = { Text(option.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     onClick = {
                         onSelect(option.sessionKey)
                         expanded = false
+                        searchQuery = ""
                     },
+                )
+            }
+            if (filteredOptions.isEmpty()) {
+                DropdownMenuItem(
+                    text = { Text("No tracks found") },
+                    onClick = { expanded = false },
+                    enabled = false
                 )
             }
         }
@@ -156,7 +262,7 @@ fun TrackCanvas(
             trackPoints.size > 10_000 -> 8
             trackPoints.size > 6_000 -> 6
             trackPoints.size > 3_000 -> 4
-            else -> 1
+            else -> 2
         }
         trackPoints.filterIndexed { index, _ -> index % step == 0 }
     }
@@ -184,7 +290,16 @@ fun TrackCanvas(
             val path = Path().apply {
                 val first = orderedTrack.first().normalise()
                 moveTo(first.x, first.y)
-                orderedTrack.drop(1).forEach { pt -> with(pt.normalise()) { lineTo(x, y) } }
+                var current = first
+                for (i in 1 until orderedTrack.size - 1) {
+                    val next = orderedTrack[i].normalise()
+                    val nextNext = orderedTrack[i + 1].normalise()
+                    val mid = Offset((next.x + nextNext.x) / 2f, (next.y + nextNext.y) / 2f)
+                    quadraticTo(next.x, next.y, mid.x, mid.y)
+                    current = mid
+                }
+                val last = orderedTrack.last().normalise()
+                lineTo(last.x, last.y)
             }
             // Outer kerb (dark grey, wide)
             drawPath(path, Color(0xFF2A2A2A), style = Stroke(width = 18.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))

@@ -9,14 +9,21 @@ import dagger.hilt.android.AndroidEntryPoint
 import dev.remgr.f1.navigation.AppNavigation
 import dev.remgr.f1.ui.theme.F1Theme
 
+import androidx.activity.viewModels
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    private val viewModel: MainViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            F1Theme {
+            val themeMode by viewModel.themeMode.collectAsState()
+            F1Theme(themeMode = themeMode) {
                 AppNavigation()
             }
         }
