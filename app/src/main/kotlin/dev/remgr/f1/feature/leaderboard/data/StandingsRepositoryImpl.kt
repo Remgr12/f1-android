@@ -6,6 +6,8 @@ import dev.remgr.f1.core.database.entity.DriverStandingCacheEntity
 import dev.remgr.f1.core.network.OpenF1Service
 import dev.remgr.f1.core.util.F1Points
 import dev.remgr.f1.feature.leaderboard.domain.StandingsRepository
+import java.time.Instant
+import java.time.OffsetDateTime
 import dev.remgr.f1.feature.leaderboard.domain.model.ConstructorStanding
 import dev.remgr.f1.feature.leaderboard.domain.model.DriverStanding
 import kotlinx.serialization.encodeToString
@@ -41,8 +43,10 @@ class StandingsRepositoryImpl @Inject constructor(
         }
 
         try {
+            val now = Instant.now()
             val sessions = service.getSessions(mapOf("year" to year.toString(), "session_type" to "Race"))
                 .filter { !it.isCancelled }
+                .filter { runCatching { OffsetDateTime.parse(it.dateStart).toInstant().isBefore(now) }.getOrDefault(false) }
             val driverInfo = service.getDrivers(mapOf("session_key" to "latest")).associateBy { it.driverNumber }
 
             val pointsMap = mutableMapOf<Int, Int>()

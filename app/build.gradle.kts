@@ -14,17 +14,23 @@ android {
         applicationId = "dev.remgr.f1"
         minSdk = 28
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.0.2"
+        versionCode = 4
+        versionName = "1.0.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    val properties = java.util.Properties()
+    val propertiesFile = rootProject.file("local.properties")
+    if (propertiesFile.exists()) {
+        properties.load(propertiesFile.inputStream())
     }
 
     signingConfigs {
         create("release") {
-            storeFile = file("release.jks") 
-            storePassword = "42316574"
-            keyAlias = "remgr"
-            keyPassword = "42316574"
+            storeFile = file(System.getenv("KEYSTORE_PATH") ?: "release.jks")
+            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: properties.getProperty("RELEASE_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("KEY_ALIAS") ?: properties.getProperty("RELEASE_KEY_ALIAS")
+            keyPassword = System.getenv("KEY_PASSWORD") ?: properties.getProperty("RELEASE_KEY_PASSWORD")
         }
     }
 
