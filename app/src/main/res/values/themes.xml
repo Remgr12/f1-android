@@ -1,0 +1,9 @@
+<resources>
+    <!-- SplashScreen theme — MainActivity switches to the Compose theme immediately -->
+    <style name="Theme.F1.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">#0F0F0F</item>
+        <item name="postSplashScreenTheme">@style/Theme.F1</item>
+    </style>
+
+    <style name="Theme.F1" parent="android:Theme.DeviceDefault.NoActionBar" />
+</resources>
