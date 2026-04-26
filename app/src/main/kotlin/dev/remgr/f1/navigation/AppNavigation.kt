@@ -51,7 +51,11 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
 
     Scaffold(
         bottomBar = {
-            if (currentRoute in topLevelScreens.map { it.route }) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = currentRoute in topLevelScreens.map { it.route },
+                enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.slideInVertically(initialOffsetY = { it }),
+                exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.slideOutVertically(targetOffsetY = { it }),
+            ) {
                 NavigationBar {
                     topLevelScreens.forEach { screen ->
                         NavigationBarItem(

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,7 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -70,31 +70,28 @@ fun PastRacesScreen(vm: PastRacesViewModel = hiltViewModel()) {
             Spacer(Modifier.height(16.dp))
             TextButton(vm::retry) { Text("Retry") }
         }
-        is PastRacesViewModel.UiState.Success -> YearList(s.years)
+        is PastRacesViewModel.UiState.Success -> YearList(s.years, vm::toggleYear)
     }
 }
 
 @Composable
-private fun YearList(years: List<YearRaces>) {
+private fun YearList(years: List<YearState>, onToggle: (Int) -> Unit) {
     LazyColumn(
         contentPadding = PaddingValues(bottom = 32.dp),
     ) {
-        years.forEach { yearRaces ->
-            item(key = yearRaces.year) {
-                YearDrawer(yearRaces)
+        years.forEach { yearState ->
+            item(key = yearState.year) {
+                YearDrawer(yearState, onToggle)
             }
         }
     }
 }
 
 @Composable
-private fun YearDrawer(yearRaces: YearRaces) {
-    val currentYear = remember { java.time.Year.now().value }
-    var expanded by rememberSaveable { mutableStateOf(yearRaces.year == currentYear) }
-
+private fun YearDrawer(yearState: YearState, onToggle: (Int) -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Surface(
-            onClick = { expanded = !expanded },
+            onClick = { onToggle(yearState.year) },
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -105,20 +102,26 @@ private fun YearDrawer(yearRaces: YearRaces) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(
-                    text = "${yearRaces.year} Season",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "${yearState.year} Season",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (yearState.isLoading) {
+                        Spacer(Modifier.width(12.dp))
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    }
+                }
                 Icon(
-                    imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    imageVector = if (yearState.isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                     contentDescription = null
                 )
             }
         }
 
         AnimatedVisibility(
-            visible = expanded,
+            visible = yearState.isExpanded,
             enter = expandVertically(),
             exit = shrinkVertically()
         ) {
@@ -128,8 +131,16 @@ private fun YearDrawer(yearRaces: YearRaces) {
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                yearRaces.meetings.forEach { meeting ->
-                    MeetingCard(meeting)
+                if (yearState.meetings.isEmpty() && !yearState.isLoading) {
+                    Text(
+                        text = "No races found for this season.",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(8.dp)
+                    )
+                } else {
+                    yearState.meetings.forEach { meeting ->
+                        MeetingCard(meeting)
+                    }
                 }
             }
         }

@@ -115,15 +115,20 @@ fun TrackMapScreen(vm: TrackMapViewModel = hiltViewModel()) {
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
             )
 
-            Box(modifier = Modifier.weight(1f)) {
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
                 if (state.trackPoints.isEmpty()) {
                     Column(
-                        modifier = Modifier.align(Alignment.Center),
+                        modifier = Modifier.fillMaxWidth().align(Alignment.Center),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                        Text("Waiting for telemetry…", color = Color.White, style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            text = "Waiting for telemetry…",
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
                     }
                 } else {
                     TrackCanvas(

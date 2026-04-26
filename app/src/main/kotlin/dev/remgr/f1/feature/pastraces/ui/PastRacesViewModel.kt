@@ -21,9 +21,11 @@ data class MeetingRaces(
     val sessions: List<Race>
 )
 
-data class YearRaces(
+data class YearState(
     val year: Int,
-    val meetings: List<MeetingRaces>
+    val meetings: List<MeetingRaces> = emptyList(),
+    val isLoading: Boolean = false,
+    val isExpanded: Boolean = false
 )
 
 @HiltViewModel
@@ -33,26 +35,50 @@ class PastRacesViewModel @Inject constructor(
 
     sealed interface UiState {
         data object Loading : UiState
-        data class Success(val years: List<YearRaces>) : UiState
+        data class Success(val years: List<YearState>) : UiState
         data class Error(val message: String) : UiState
     }
 
     private val _uiState = MutableStateFlow<UiState>(UiState.Loading)
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
-    init { load() }
+    init { 
+        val currentYear = Year.now().value
+        val initialYears = (currentYear downTo 2023).map { year ->
+            YearState(year = year, isExpanded = year == currentYear)
+        }
+        _uiState.value = UiState.Success(initialYears)
+        loadYear(currentYear)
+    }
 
-    fun retry() = load()
+    fun retry() {
+        val currentYear = Year.now().value
+        loadYear(currentYear)
+    }
 
-    private fun load() {
+    fun toggleYear(year: Int) {
+        val s = _uiState.value as? UiState.Success ?: return
+        val currentYears = s.years.toMutableList()
+        val index = currentYears.indexOfFirst { it.year == year }
+        if (index == -1) return
+
+        val target = currentYears[index]
+        val nowExpanded = !target.isExpanded
+        
+        currentYears[index] = target.copy(isExpanded = nowExpanded)
+        _uiState.value = s.copy(years = currentYears)
+
+        if (nowExpanded && target.meetings.isEmpty() && !target.isLoading) {
+            loadYear(year)
+        }
+    }
+
+    private fun loadYear(year: Int) {
         viewModelScope.launch {
-            _uiState.value = UiState.Loading
-            runCatching {
-                val currentYear = Year.now().value
-                val yearsToFetch = (currentYear downTo 2023).toList()
-                
-                yearsToFetch.map { year ->
-                    val races = repository.getRaces(year)
+            updateYearState(year) { it.copy(isLoading = true) }
+            
+            runCatching { repository.getRaces(year) }
+                .onSuccess { races -> 
                     val grouped = races.groupBy { it.meetingKey() }.map { (meetingKey, sessions) ->
                         val first = sessions.first()
                         val separator = " — "
@@ -70,12 +96,18 @@ class PastRacesViewModel @Inject constructor(
                             sessions = sessions.sortedBy { it.dateStart() }
                         )
                     }.sortedByDescending { it.sessions.last().dateStart() }
-                    YearRaces(year, grouped)
+                    
+                    updateYearState(year) { it.copy(meetings = grouped, isLoading = false) }
                 }
-            }
-                .onSuccess { years -> _uiState.value = UiState.Success(years) }
-                .onFailure { _uiState.value = UiState.Error(it.message ?: "Unknown error") }
+                .onFailure { _ ->
+                    updateYearState(year) { it.copy(isLoading = false) }
+                }
         }
     }
-}
 
+    private fun updateYearState(year: Int, transform: (YearState) -> YearState) {
+        val s = _uiState.value as? UiState.Success ?: return
+        val updated = s.years.map { if (it.year == year) transform(it) else it }
+        _uiState.value = s.copy(years = updated)
+    }
+}
