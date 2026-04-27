@@ -195,4 +195,16 @@ class StandingsRepositoryImpl @Inject constructor(
             throw e
         }
     }
+
+    override suspend fun getCachedDriverStandings(year: Int): List<DriverStanding> =
+        dao.getDriverStandings(year).map {
+            DriverStanding(it.position, it.driverNumber, it.fullName, it.nameAcronym,
+                it.teamName, it.teamColour, it.headshotUrl, it.points, it.wins)
+        }
+
+    override suspend fun getCachedConstructorStandings(year: Int): List<ConstructorStanding> =
+        dao.getConstructorStandings(year).map {
+            ConstructorStanding(it.position, it.teamName, it.teamColour,
+                it.points, it.wins, it.driverAcronyms)
+        }
 }

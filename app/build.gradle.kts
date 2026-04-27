@@ -6,6 +6,13 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+val localProperties: Map<String, String> = rootProject.file("local.properties").let { f ->
+    if (f.exists()) f.readLines()
+        .filter { '=' in it && !it.startsWith('#') }
+        .associate { it.substringBefore('=').trim() to it.substringAfter('=').trim() }
+    else emptyMap()
+}
+
 android {
     namespace = "dev.remgr.f1"
     compileSdk = 36
@@ -14,23 +21,17 @@ android {
         applicationId = "dev.remgr.f1"
         minSdk = 28
         targetSdk = 36
-        versionCode = 4
-        versionName = "1.0.3"
+        versionCode = 8
+        versionName = "1.0.7"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    }
-
-    val properties = java.util.Properties()
-    val propertiesFile = rootProject.file("local.properties")
-    if (propertiesFile.exists()) {
-        properties.load(propertiesFile.inputStream())
     }
 
     signingConfigs {
         create("release") {
             storeFile = file(System.getenv("KEYSTORE_PATH") ?: "release.jks")
-            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: properties.getProperty("RELEASE_KEYSTORE_PASSWORD")
-            keyAlias = System.getenv("KEY_ALIAS") ?: properties.getProperty("RELEASE_KEY_ALIAS")
-            keyPassword = System.getenv("KEY_PASSWORD") ?: properties.getProperty("RELEASE_KEY_PASSWORD")
+            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: localProperties["RELEASE_KEYSTORE_PASSWORD"]
+            keyAlias = System.getenv("KEY_ALIAS") ?: localProperties["RELEASE_KEY_ALIAS"]
+            keyPassword = System.getenv("KEY_PASSWORD") ?: localProperties["RELEASE_KEY_PASSWORD"]
         }
     }
 

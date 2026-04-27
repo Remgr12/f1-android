@@ -6,4 +6,6 @@ import dev.remgr.f1.feature.leaderboard.domain.model.DriverStanding
 interface StandingsRepository {
     suspend fun getDriverStandings(year: Int): List<DriverStanding>
     suspend fun getConstructorStandings(year: Int): List<ConstructorStanding>
+    suspend fun getCachedDriverStandings(year: Int): List<DriverStanding>
+    suspend fun getCachedConstructorStandings(year: Int): List<ConstructorStanding>
 }

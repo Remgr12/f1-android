@@ -64,7 +64,10 @@ class DriverDetailViewModel @Inject constructor(
                 val seasons = mutableListOf<DriverSeasonRow>()
 
                 for (year in years) {
-                    val standings = runCatching { repository.getDriverStandings(year) }.getOrNull() ?: continue
+                    val standings = runCatching {
+                        if (year == currentYear) repository.getDriverStandings(year)
+                        else repository.getCachedDriverStandings(year)
+                    }.getOrNull() ?: continue
                     val driver = standings.find { it.driverNumber() == driverNumber } ?: continue
                     if (latestDriver == null) latestDriver = driver
                     seasons += DriverSeasonRow(

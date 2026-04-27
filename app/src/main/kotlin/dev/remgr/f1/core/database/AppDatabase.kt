@@ -29,7 +29,7 @@ import dev.remgr.f1.core.database.entity.SessionCacheEntity
         CircuitOutlineEntity::class,
         SessionCacheEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)

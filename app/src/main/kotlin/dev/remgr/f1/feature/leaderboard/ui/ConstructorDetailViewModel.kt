@@ -61,7 +61,10 @@ class ConstructorDetailViewModel @Inject constructor(
                 val seasons = mutableListOf<ConstructorSeasonRow>()
 
                 for (year in years) {
-                    val standings = runCatching { repository.getConstructorStandings(year) }.getOrNull() ?: continue
+                    val standings = runCatching {
+                        if (year == currentYear) repository.getConstructorStandings(year)
+                        else repository.getCachedConstructorStandings(year)
+                    }.getOrNull() ?: continue
                     val constructor = standings.find { it.teamName().equals(teamName, ignoreCase = true) } ?: continue
                     latestColour = constructor.teamColour()
                     seasons += ConstructorSeasonRow(
