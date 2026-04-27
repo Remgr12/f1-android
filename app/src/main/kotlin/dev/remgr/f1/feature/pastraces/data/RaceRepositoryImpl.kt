@@ -55,7 +55,7 @@ class RaceRepositoryImpl @Inject constructor(
                 .associateBy { it.meetingKey }
 
             val now = Instant.now()
-            val raceSessions = listOf("Race", "Qualifying")
+            val raceSessions = listOf("Race", "Qualifying", "Sprint", "Sprint Qualifying")
                 .flatMap { type -> service.getSessions(mapOf("year" to year.toString(), "session_type" to type)) }
                 .distinctBy { it.sessionKey }
                 .filter { !it.isCancelled }

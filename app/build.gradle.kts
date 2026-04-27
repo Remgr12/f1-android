@@ -21,8 +21,8 @@ android {
         applicationId = "dev.remgr.f1"
         minSdk = 28
         targetSdk = 36
-        versionCode = 8
-        versionName = "1.0.7"
+        versionCode = 11
+        versionName = "1.0.10"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

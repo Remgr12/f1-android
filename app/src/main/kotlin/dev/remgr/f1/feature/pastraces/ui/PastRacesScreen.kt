@@ -1,7 +1,6 @@
 package dev.remgr.f1.feature.pastraces.ui
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.animation.expandVertically
@@ -141,8 +140,8 @@ private fun YearDrawer(
 
         AnimatedVisibility(
             visible = yearState.isExpanded,
-            enter = expandVertically(),
-            exit = shrinkVertically()
+            enter = expandVertically(animationSpec = tween(250), expandFrom = Alignment.Top),
+            exit = shrinkVertically(animationSpec = tween(200), shrinkTowards = Alignment.Top),
         ) {
             Column(
                 modifier = Modifier
@@ -183,8 +182,7 @@ private fun MeetingCard(
 
     Surface(
         modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize(),
+            .fillMaxWidth(),
         shape = RectangleShape,
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 2.dp,
@@ -236,8 +234,8 @@ private fun MeetingCard(
 
             AnimatedVisibility(
                 visible = expanded,
-                enter = expandVertically(),
-                exit = shrinkVertically()
+                enter = expandVertically(animationSpec = tween(250), expandFrom = Alignment.Top),
+                exit = shrinkVertically(animationSpec = tween(200), shrinkTowards = Alignment.Top),
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Spacer(Modifier.height(12.dp))

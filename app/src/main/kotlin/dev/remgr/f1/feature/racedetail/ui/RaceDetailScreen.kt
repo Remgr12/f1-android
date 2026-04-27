@@ -2,6 +2,8 @@ package dev.remgr.f1.feature.racedetail.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,7 +26,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
-import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -74,7 +76,7 @@ fun RaceDetailScreen(
         },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            ScrollableTabRow(selectedTabIndex = tab) {
+            TabRow(selectedTabIndex = tab) {
                 listOf("Results", "Lap Chart", "Pit Stops", "Sectors").forEachIndexed { idx, label ->
                     Tab(selected = tab == idx, onClick = { vm.selectTab(idx) },
                         text = { Text(label, modifier = Modifier.padding(vertical = 14.dp)) })
@@ -90,8 +92,15 @@ fun RaceDetailScreen(
                 is RaceDetailViewModel.UiState.Success -> when (tab) {
                     0 -> ResultsList(s.detail.results)
                     1 -> LapChartCanvas(s.detail.laps, modifier = Modifier.fillMaxSize().padding(8.dp))
-                    2 -> PitTimelineCanvas(s.detail.results, s.detail.pitStops, s.detail.totalLaps,
-                                modifier = Modifier.fillMaxWidth().padding(8.dp))
+                    2 -> Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState())
+                                .padding(8.dp)
+                        ) {
+                            PitTimelineCanvas(s.detail.results, s.detail.pitStops, s.detail.totalLaps,
+                                modifier = Modifier.fillMaxWidth())
+                        }
                     3 -> SectorTimesList(s.detail.laps)
                 }
             }
@@ -276,7 +285,7 @@ fun PitTimelineCanvas(
             bounds.zipWithNext().forEachIndexed { stintIdx, (start, end) ->
                 val x1 = labelW + (start.toFloat() / effectiveLaps) * barW
                 val x2 = labelW + (end.toFloat()   / effectiveLaps) * barW
-                val alpha = (0.45f + stintIdx * 0.15f).coerceAtMost(0.9f)
+                val alpha = if (stintIdx % 2 == 0) 0.85f else 0.45f
                 drawRoundRect(
                     teamColor.copy(alpha = alpha),
                     topLeft  = Offset(x1, y),
@@ -285,10 +294,11 @@ fun PitTimelineCanvas(
                 )
             }
 
-            // Pit markers (white vertical bars)
+            // Pit markers — dark outline + white fill for contrast on any team color
             pits.forEach { pit ->
                 val x = labelW + (pit.lapNumber.toFloat() / effectiveLaps) * barW
-                drawLine(Color.White.copy(alpha = 0.9f), Offset(x, y), Offset(x, y + barH), 2.dp.toPx())
+                drawLine(Color.Black.copy(alpha = 0.5f), Offset(x, y - 1f), Offset(x, y + barH + 1f), 4.dp.toPx())
+                drawLine(Color.White, Offset(x, y), Offset(x, y + barH), 2.dp.toPx())
             }
 
             // Driver acronym
